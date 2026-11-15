@@ -49,3 +49,11 @@ pytest -q
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 **Known gaps:** see `docs/PLATFORM_UPGRADE.md`. Notion/Drive connectors, OCR, MCP server, pgvector semantic retrieval, n8n workflow orchestration, automatic Telegram webhook registration, memory/business record CRUD, and complete deployment/security verification have not yet been implemented.
+
+## Telegram chatbot and RAG retrieval
+
+The cloud module [`rag.py`](rag.py) connects the protected FastAPI service and Telegram webhook to your indexed knowledge base. Telegram commands include `/start`, `/help`, `/search <keywords>`, `/ask <question>`, and natural-language messages. Replies include document source filenames.
+
+**Setup required:** In Vercel, configure `DATABASE_URL` for Neon PostgreSQL, `RAG_ORG`, distinct `RAG_READ_TOKEN` and `RAG_WRITE_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_KNOWLEDGE_BASE`, and the LLM provider settings (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`). Register Telegram's webhook through a secure admin process. This setup is **not complete automatically merely by deploying to Vercel**.
+
+Full setup and troubleshooting: [Telegram + RAG Runbook](docs/TELEGRAM_RAG_RUNBOOK.md). The cloud search implementation is currently keyword-based; pgvector semantic search and webhook deduplication remain future work.
