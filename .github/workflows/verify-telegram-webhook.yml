@@ -19,8 +19,11 @@ jobs:
               with urllib.request.urlopen(req, timeout=20) as response:
                   print("HTTP:", response.status)
                   print("Content type:", response.headers.get("Content-Type", "<none>"))
+                  print("Final URL:", response.geturl())
                   body = response.read(12000)
                   print("Body prefix:", repr(body[:160]))
+                  import re
+                  print("HTML title:", re.findall(rb"<title[^>]*>(.*?)</title>", body, re.I | re.S)[:1])
                   obj = json.loads(body)
                   print("Service:", obj.get("service"))
                   print("Telegram webhook:", obj.get("telegram_webhook", "missing"))
