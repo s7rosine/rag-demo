@@ -1,0 +1,17 @@
+name: RAG demo CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check src api.py app.py tests
+      - run: pytest -q
+      - run: docker build -t rag-demo:ci .

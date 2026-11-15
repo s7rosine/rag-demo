@@ -1,0 +1,1 @@
+RAG stands for Retrieval-Augmented Generation. The indexing steps are ingestion, chunking, embedding, and vector storage. At query time, relevant text is retrieved and given to a language model to produce an answer with source references.
