@@ -1,0 +1,30 @@
+name: Verify production Telegram webhook
+on:
+  workflow_dispatch:
+jobs:
+  webhook-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Trigger cloud webhook configuration and check public status
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import urllib.request
+          url = "https://rag-demo-muku-solutions.vercel.app/health"
+          req = urllib.request.Request(url, headers={"User-Agent": "rag-demo-github-smoke/1.0"})
+          try:
+              with urllib.request.urlopen(req, timeout=20) as response:
+                  print("HTTP:", response.status)
+                  obj = json.loads(response.read(12000))
+                  print("Service:", obj.get("service"))
+                  print("Telegram webhook:", obj.get("telegram_webhook", "missing"))
+                  if obj.get("telegram_webhook") != "registered":
+                      raise SystemExit("Telegram cloud registration is not confirmed.")
+          except Exception as exc:
+              # Prevent Vercel/Telegram response bodies or token-bearing request URLs in CI logs.
+              print("Failed: cloud webhook check did not return registered.")
+              raise SystemExit(1) from None
+          PY
