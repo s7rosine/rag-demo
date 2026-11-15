@@ -7,7 +7,8 @@ import httpx
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
-from platform_core import Repository, Settings\nfrom rag import ask_knowledge, search_knowledge, telegram_answer, telegram_search
+from platform_core import Repository, Settings
+from rag import ask_knowledge, search_knowledge, telegram_answer, telegram_search
 
 logging.basicConfig(level=logging.WARNING)
 # Never enable HTTPX/HTTPCore debug logging; URLs to Telegram contain credentials.
