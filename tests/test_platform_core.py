@@ -1,5 +1,5 @@
 import pytest
-from platform_core import Settings, Repository, extract, split_text, keyword_score
+from platform_core import Settings, Repository, extract, split_text
 
 def test_txt_and_json():
     assert extract("a.txt", b"hello") == "hello"

@@ -1,5 +1,4 @@
 """RAG platform core: explicit persistence and organization-scoped retrieval."""
-import csv
 import hashlib
 import io
 import json

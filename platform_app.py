@@ -1,9 +1,7 @@
 """Authenticated RAG API for serverless and local use."""
-import hashlib
 import hmac
 import logging
 import os
-from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
