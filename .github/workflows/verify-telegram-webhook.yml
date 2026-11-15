@@ -18,7 +18,10 @@ jobs:
           try:
               with urllib.request.urlopen(req, timeout=20) as response:
                   print("HTTP:", response.status)
-                  obj = json.loads(response.read(12000))
+                  print("Content type:", response.headers.get("Content-Type", "<none>"))
+                  body = response.read(12000)
+                  print("Body prefix:", repr(body[:160]))
+                  obj = json.loads(body)
                   print("Service:", obj.get("service"))
                   print("Telegram webhook:", obj.get("telegram_webhook", "missing"))
                   if obj.get("telegram_webhook") != "registered":
