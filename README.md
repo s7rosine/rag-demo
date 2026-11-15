@@ -28,6 +28,29 @@ uvicorn platform_app:app --host 127.0.0.1 --port 8001
 
 Use `$env:VARIABLE="value"` syntax in PowerShell instead of `export`. Cloud application API docs: http://localhost:8001/docs.
 
+## Configure Vercel from `.env.example`
+
+Use [`.env.example`](.env.example) as the reference for environment variable names.
+In **Vercel → rag-demo → Settings → Environment Variables**, add cloud variables
+under **Production**, filling in real values **only in Vercel** (never in GitHub).
+The required cloud keys are `RAG_MODE`, `DATABASE_URL`, `RAG_ORG`,
+`RAG_READ_TOKEN`, `RAG_WRITE_TOKEN`, `TELEGRAM_BOT_TOKEN`,
+`TELEGRAM_CHAT_ID`, and `TELEGRAM_WEBHOOK_SECRET`.
+`TELEGRAM_WEBHOOK_URL` defaults to the verified
+`https://rag-demo-gamma.vercel.app/telegram/webhook`; 
+`TELEGRAM_KNOWLEDGE_BASE` defaults to `default`.
+For generated answers, set `LLM_BASE_URL`, `LLM_MODEL`, and
+`LLM_API_KEY` when your provider requires it. `RAG_SQLITE_PATH`,
+`CHROMA_PATH`, `OLLAMA_URL`, and `API_URL` are local-demo settings,
+not requirements for the Vercel production platform.
+
+After adding or updating cloud values, redeploy the Production deployment,
+then check `https://rag-demo-gamma.vercel.app/health`.
+A `telegram_webhook` status of `registered` verifies webhook URL registration,
+**not** end-to-end Telegram replies or successful database retrieval.
+Do not add sensitive/private documents until authorization and retention
+controls have been reviewed.
+
 ## Production deployment safeguards
 
 Vercel entrypoint: `platform_app:app` (configured in `pyproject.toml`). **Production requires `RAG_MODE=production`, `DATABASE_URL` for Neon PostgreSQL, `RAG_ORG`, distinct `RAG_READ_TOKEN` and `RAG_WRITE_TOKEN`, and explicit authorization validation.** Vercel's filesystem is ephemeral. The platform must not be used for confidential business data or public writes in its current state.
