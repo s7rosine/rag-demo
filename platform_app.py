@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from platform_core import Repository, Settings
 from notion_sync import sync_notion_page
 from rag import ask_knowledge, search_knowledge, telegram_answer, telegram_search
+from rag_diagnostics import rag_status
 from telegram_registration import ensure_webhook, webhook_status
 
 logging.basicConfig(level=logging.WARNING)
@@ -187,7 +188,10 @@ async def telegram_webhook(
     org = os.getenv("RAG_ORG", "")
     kb = os.getenv("TELEGRAM_KNOWLEDGE_BASE", "default")
     if cmd in ("/start", "/help"):
-        reply = "Ask a question or use /ask <question> or /search <keywords>. Answers use indexed documents."
+        reply = "Ask a question or use /ask <question> or /search <keywords>. Use /status to check RAG health."
+    elif cmd == "/status":
+        # Only available to the already-verified Telegram chat and webhook sender.
+        reply = rag_status(store, cfg, org, kb)
     elif cmd in ("/ask", "/search") and not arg.strip():
         reply = "Please include a question after " + cmd + "."
     else:
@@ -201,7 +205,7 @@ async def telegram_webhook(
                 reply = telegram_answer(result)
         except Exception:
             # Never send database URLs, credentials or exception messages to users.
-            reply = "Knowledge retrieval is currently unavailable. Check database and model configuration."
+            reply = "Knowledge retrieval failed. Send /status to identify the database or indexing issue."
 
     # No token-bearing URLs may be logged. Keep HTTPX/HTTPCore below DEBUG.
     try:

@@ -92,3 +92,39 @@ def test_telegram_rag_question_route(monkeypatch):
     )
     assert response.status_code == 200
     assert sent[0]["text"] == "Look in the guide.\n\nSources: guide.md"
+
+def test_status_command_is_restricted_to_authorized_chat(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-secret")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "22")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake-token")
+    monkeypatch.setenv("RAG_ORG", "test-org")
+    sent = []
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            pass
+        async def post(self, url, json):
+            sent.append(json)
+            return type("Reply", (), {"status_code": 200})()
+
+    monkeypatch.setattr(platform_app.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(platform_app, "rag_status", lambda *args: "RAG diagnostics\\nDatabase: CONNECTED")
+    client = TestClient(platform_app.app)
+    verified = client.post(
+        "/telegram/webhook",
+        headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+        json={"message": {"chat": {"id": 22}, "text": "/status"}},
+    )
+    assert verified.json() == {"accepted": True}
+    assert "Database: CONNECTED" in sent[0]["text"]
+    unauthorized = client.post(
+        "/telegram/webhook",
+        headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+        json={"message": {"chat": {"id": 999}, "text": "/status"}},
+    )
+    assert unauthorized.json() == {"accepted": False}
+    assert len(sent) == 1

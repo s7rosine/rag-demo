@@ -59,3 +59,22 @@ this single-chat prototype without a reviewed authorization boundary.
 - The cloud retriever remains keyword-based; pgvector semantic indexing is pending.
 - The Notion integration token is separate from your connected ChatGPT
   Notion account and must be explicitly provisioned for Vercel.
+
+## Telegram database diagnostics (private authorized chat only)
+
+Send `/status` to your Telegram bot. The result checks the actual Neon
+connection, confirms whether the `rag_chunks` table is readable, counts
+chunks in the configured knowledge base, and reports Notion/model configuration
+without exposing passwords, connection strings or provider errors.
+
+- **Database: CONNECTION FAILED**: verify the pooled Neon connection string,
+  role/password and TLS in Vercel. Vercel must be redeployed after changes.
+- **Index table: MISSING or INACCESSIBLE**: database is reachable but the
+  `rag_chunks` schema is not accessible; use an authorized ingest operation
+  to initialize the schema after reviewing privileges.
+- **Indexed chunks: 0**: connect/ingest an approved Notion page first.
+- **Answer model: NOT CONFIGURED**: configure `LLM_PROVIDER`,
+  `LLM_MODEL`, `LLM_API_KEY`, and (for compatible providers) `LLM_BASE_URL`.
+
+Do not copy credentials or complete Telegram messages containing confidential
+information into issue reports or chats.
