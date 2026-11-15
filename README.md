@@ -51,6 +51,26 @@ A `telegram_webhook` status of `registered` verifies webhook URL registration,
 Do not add sensitive/private documents until authorization and retention
 controls have been reviewed.
 
+## Approved multi-source RAG architecture
+
+The modular source adapters are in [cloud_sources.py](cloud_sources.py): scoped S3
+bucket/prefix, explicitly listed Notion pages, and the direct children of one
+Google Drive folder. [sync_knowledge.py](sync_knowledge.py) is a **manual,
+opt-in ingestion worker** that checks source content hashes and skips unchanged
+documents. The worker needs [requirements-connectors.txt](requirements-connectors.txt)
+and explicit cloud credentials. **No background synchronization or deletion
+reconciliation is enabled.** S3, Notion, and Drive remain the systems of record.
+
+Provider-independent generation lives in [cloud_models.py](cloud_models.py):
+OpenAI-compatible APIs (including compatible OpenRouter/NIM endpoints), native
+Anthropic Messages API, and native Gemini API. Select with `LLM_PROVIDER`.
+Embedding generation is independently configurable via `EMBEDDING_*`.
+Embeddings are not yet persisted; current Vercel retrieval is keyword-only,
+so the platform is **not yet semantic vector RAG**.
+
+See [multi-source implementation runbook](docs/MULTISOURCE_RAG.md) before using
+real accounts or confidential documents.
+
 ## Production deployment safeguards
 
 Vercel entrypoint: `platform_app:app` (configured in `pyproject.toml`). **Production requires `RAG_MODE=production`, `DATABASE_URL` for Neon PostgreSQL, `RAG_ORG`, distinct `RAG_READ_TOKEN` and `RAG_WRITE_TOKEN`, and explicit authorization validation.** Vercel's filesystem is ephemeral. The platform must not be used for confidential business data or public writes in its current state.
@@ -71,7 +91,7 @@ pytest -q
 - [Architecture](docs/ARCHITECTURE.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 
-**Known gaps:** see `docs/PLATFORM_UPGRADE.md`. Notion/Drive connectors, OCR, MCP server, pgvector semantic retrieval, n8n workflow orchestration, automatic Telegram webhook registration, memory/business record CRUD, and complete deployment/security verification have not yet been implemented.
+**Known gaps:** see `docs/PLATFORM_UPGRADE.md`. scheduled connector synchronization, OCR, MCP server, pgvector semantic retrieval, n8n orchestration, document deletion reconciliation, memory/business record CRUD, and complete deployment/security verification are not yet implemented.
 
 ## Telegram chatbot and RAG retrieval
 
