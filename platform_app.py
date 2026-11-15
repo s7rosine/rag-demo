@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, Uplo
 from pydantic import BaseModel, Field
 
 from platform_core import Repository, Settings
+from notion_sync import sync_notion_page
 from rag import ask_knowledge, search_knowledge, telegram_answer, telegram_search
 from telegram_registration import ensure_webhook, webhook_status
 
@@ -122,6 +123,32 @@ async def ingest(file: UploadFile = File(...), kb: str = "default",
 @app.post("/query")
 async def legacy_query(payload: Query, org: str = Depends(read_access)):
     return await ask(payload, org)
+
+
+class NotionSyncRequest(BaseModel):
+    page_id: str = Field(min_length=8, max_length=80)
+
+
+@app.post("/admin/sync/notion")
+def admin_sync_notion(payload: NotionSyncRequest, org: str = Depends(write_access)):
+    """Explicit, authenticated import of ONE allowlisted Notion page.
+
+    Vercel receives its own scoped Notion integration token; this does not use
+    ChatGPT/Composio's connection or expose any Notion document content.
+    """
+    token = os.getenv("NOTION_API_TOKEN", "")
+    allowed = [page.strip() for page in os.getenv("NOTION_PAGE_IDS", "").split(",") if page.strip()]
+    if not token or not allowed or not os.getenv("DATABASE_URL", ""):
+        raise HTTPException(503, "Notion sync requires its integration and persistent storage configuration")
+    if payload.page_id not in allowed:
+        raise HTTPException(403, "Notion page is not authorized for this knowledge base")
+    try:
+        return sync_notion_page(store, org, token, allowed, payload.page_id)
+    except PermissionError:
+        raise HTTPException(403, "Notion page is not authorized for this knowledge base") from None
+    except Exception:
+        # Do not reflect provider tokens, page contents, or upstream error URLs.
+        raise HTTPException(503, "Notion sync unavailable; check configuration and permissions") from None
 
 
 @app.post("/telegram/webhook")

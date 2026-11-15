@@ -71,6 +71,23 @@ so the platform is **not yet semantic vector RAG**.
 See [multi-source implementation runbook](docs/MULTISOURCE_RAG.md) before using
 real accounts or confidential documents.
 
+## Connect selected Notion pages to the hosted RAG API
+
+The secured `POST /admin/sync/notion` endpoint can import **one explicitly
+allowlisted Notion page per call** into the `default` knowledge base.
+It requires `RAG_WRITE_TOKEN` and these production settings:
+`DATABASE_URL` (persistent Neon PostgreSQL), `RAG_ORG`,
+`NOTION_API_TOKEN` (a separately authorized Notion integration token),
+and `NOTION_PAGE_IDS` (comma-separated permitted page IDs).
+The existing ChatGPT/Composio Notion connection **does not automatically
+authorize** your Vercel app. Never copy workspace secrets into GitHub.
+
+Use the secure interactive API documentation at `/docs` to supply the write
+token and an approved `page_id`. Ensure only approved non-sensitive pages
+are allowed: indexed excerpts may be returned to the authorized Telegram chat.
+No automatic syncing, background schedule, deletion tracking, or per-page
+source ACL propagation exists yet. See [Notion connection runbook](docs/NOTION_CONNECTION.md).
+
 ## Production deployment safeguards
 
 Vercel entrypoint: `platform_app:app` (configured in `pyproject.toml`). **Production requires `RAG_MODE=production`, `DATABASE_URL` for Neon PostgreSQL, `RAG_ORG`, distinct `RAG_READ_TOKEN` and `RAG_WRITE_TOKEN`, and explicit authorization validation.** Vercel's filesystem is ephemeral. The platform must not be used for confidential business data or public writes in its current state.
