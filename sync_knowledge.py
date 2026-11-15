@@ -9,6 +9,7 @@ import os
 
 from cloud_sources import configured_documents
 from platform_core import Repository, Settings
+from pathlib import PurePosixPath
 
 
 def main() -> None:
@@ -37,10 +38,14 @@ def main() -> None:
         # Source IDs are stable (S3 key, Notion page, Drive file ID).
         # Prefix the source ID so equal filenames across systems do not clash.
         content_hash = hashlib.sha256(doc.data).hexdigest()
-        if repo.has_document(org, args.kb, doc.source, content_hash):
+        # Preserve a stable source identifier while retaining a parseable extension.
+        source_name = doc.source
+        if PurePosixPath(doc.source).suffix.lower() not in {".txt", ".md", ".csv", ".json", ".html", ".htm", ".pdf", ".docx"}:
+            source_name = doc.source + "/" + PurePosixPath(doc.filename).name
+        if repo.has_document(org, args.kb, source_name, content_hash):
             skipped += 1
             continue
-        result = repo.ingest(org, args.kb, doc.source, doc.data)
+        result = repo.ingest(org, args.kb, source_name, doc.data)
         total += 1
         print("Indexed " + doc.source + " (" + str(result["chunks_indexed"]) + " chunks)")
     print("Complete: indexed=" + str(total) + ", unchanged=" + str(skipped))
