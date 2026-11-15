@@ -2,6 +2,7 @@
 import hmac
 import logging
 import os
+from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
@@ -9,12 +10,21 @@ from pydantic import BaseModel, Field
 
 from platform_core import Repository, Settings
 from rag import ask_knowledge, search_knowledge, telegram_answer, telegram_search
+from telegram_registration import ensure_webhook, webhook_status
 
 logging.basicConfig(level=logging.WARNING)
 # Never enable HTTPX/HTTPCore debug logging; URLs to Telegram contain credentials.
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
-app = FastAPI(title="RAG Platform", version="0.2.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # In Vercel, each new serverless instance can initialize independently.
+    # Registration is conditional on the Telegram webhook URL being different.
+    await ensure_webhook()
+    yield
+
+
+app = FastAPI(title="RAG Platform", version="0.2.1", lifespan=lifespan)
 cfg = Settings()
 store = Repository(cfg)
 
@@ -46,7 +56,8 @@ class Query(BaseModel):
 
 
 @app.get("/")
-def home():
+async def home():
+    await ensure_webhook()
     return {
         "service": "RAG Platform",
         "status": "online",
@@ -57,8 +68,11 @@ def home():
 
 
 @app.get("/health")
-def health():
-    return {"status": "ok", "service": "rag-platform"}
+async def health():
+    # Fallback if the serverless runtime does not execute lifespan callbacks.
+    await ensure_webhook()
+    return {"status": "ok", "service": "rag-platform",
+            "telegram_webhook": webhook_status()}
 
 
 @app.get("/knowledge-bases")

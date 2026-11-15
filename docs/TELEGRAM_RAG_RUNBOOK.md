@@ -35,7 +35,7 @@ Telegram must know your public webhook URL, which is:
 
 `https://rag-demo-muku-solutions.vercel.app/telegram/webhook`
 
-Configure this through a secure management process that calls the official Telegram `setWebhook` API with your private bot token and the `secret_token` field matching `TELEGRAM_WEBHOOK_SECRET`. The repository **does not automatically register Telegram webhooks**. Do not include bot tokens in shared scripts, pasted URLs, commit history or screenshots. Verify registration with Telegram's `getWebhookInfo`, through an authorized interface.
+The FastAPI cloud application automatically checks Telegram's `getWebhookInfo` during application startup (and when `/health` is requested) and calls `setWebhook` only if the configured URL is missing or different. It sends the saved `TELEGRAM_WEBHOOK_SECRET` as the registration secret. No laptop commands are needed. After deployment, request `GET /health`; the `telegram_webhook` field will report `registered`, `not_configured`, `invalid_url`, or `registration_unavailable`. This status confirms the configured URL, not end-to-end message processing. Avoid sharing bot tokens or webhook secrets. If the secret has changed but the registered URL has not, Telegram cannot reveal the stored secret; rotate the URL or use an authorized re-registration workflow to ensure the new secret takes effect.
 
 ## Load documents
 
