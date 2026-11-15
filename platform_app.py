@@ -44,6 +44,17 @@ class Query(BaseModel):
     limit: int = Field(default=5, ge=1, le=20)
 
 
+@app.get("/")
+def home():
+    return {
+        "service": "RAG Platform",
+        "status": "online",
+        "documentation": "/docs",
+        "health": "/health",
+        "message": "This is a REST API. Persistent knowledge features require protected database configuration.",
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "rag-platform"}
