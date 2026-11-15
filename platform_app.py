@@ -7,7 +7,7 @@ import httpx
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
-from platform_core import Repository, Settings, answer
+from platform_core import Repository, Settings\nfrom rag import ask_knowledge, search_knowledge, telegram_answer, telegram_search
 
 logging.basicConfig(level=logging.WARNING)
 # Never enable HTTPX/HTTPCore debug logging; URLs to Telegram contain credentials.
@@ -79,11 +79,11 @@ def search(payload: Query, org: str = Depends(read_access)):
 @app.post("/ask")
 async def ask(payload: Query, org: str = Depends(read_access)):
     try:
-        matches = store.search(org, payload.kb, payload.question, payload.limit)
-        response = await answer(payload.question, matches, cfg)
-        return {"answer": response, "sources": [
-            {"source": m["source"], "document_id": m["document_id"], "chunk_id": m["chunk_id"]}
-            for m in matches]}
+        result = await ask_knowledge(
+            payload.question, org, kb=payload.kb, limit=payload.limit,
+            repository=store, settings=cfg,
+        )
+        return result
     except Exception:
         raise HTTPException(503, "Question answering unavailable") from None
 
@@ -110,43 +110,64 @@ async def legacy_query(payload: Query, org: str = Depends(read_access)):
 
 
 @app.post("/telegram/webhook")
-async def telegram_webhook(request: Request, x_telegram_bot_api_secret_token: str | None =
-                           Header(default=None)):
-    expected = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
-    if not expected or not x_telegram_bot_api_secret_token or not hmac.compare_digest(
-            expected, x_telegram_bot_api_secret_token):
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str | None = Header(default=None),
+):
+    """Read-only webhook; validate Telegram header and allowed chat before retrieval."""
+    secret = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+    if not secret or not x_telegram_bot_api_secret_token or not hmac.compare_digest(
+        secret, x_telegram_bot_api_secret_token
+    ):
         raise HTTPException(403, "Forbidden")
-    update = await request.json()
+
+    # Telegram's real webhook update payload always contains a message object.
+    try:
+        update = await request.json()
+    except ValueError:
+        raise HTTPException(400, "Invalid update") from None
     message = update.get("message") or {}
-    chat = message.get("chat") or {}
-    chat_id = str(chat.get("id", ""))
-    if not chat_id or not hmac.compare_digest(chat_id, os.getenv("TELEGRAM_CHAT_ID", "")):
+    chat_id = str((message.get("chat") or {}).get("id", ""))
+    allowed = os.getenv("TELEGRAM_CHAT_ID", "")
+    if not allowed or not chat_id or not hmac.compare_digest(chat_id, allowed):
         return {"accepted": False}
-    text = str(message.get("text") or "")[:2000]
+
+    text = str(message.get("text") or "").strip()[:2000]
     if not text:
         return {"accepted": True}
+
     token = os.getenv("TELEGRAM_BOT_TOKEN", "")
     if not token:
         raise HTTPException(503, "Telegram integration unavailable")
-    if text.split(" ", 1)[0] in ("/start", "/help"):
-        response_text = "Send /ask question or /search question. Only configured chats are supported."
+
+    cmd, _, arg = text.partition(" ")
+    cmd = cmd.split("@", 1)[0].lower()
+    org = os.getenv("RAG_ORG", "")
+    kb = os.getenv("TELEGRAM_KNOWLEDGE_BASE", "default")
+    if cmd in ("/start", "/help"):
+        reply = "Ask a question or use /ask <question> or /search <keywords>. Answers use indexed documents."
+    elif cmd in ("/ask", "/search") and not arg.strip():
+        reply = "Please include a question after " + cmd + "."
     else:
-        mode = "search" if text.startswith("/search ") else "ask"
-        question = text.partition(" ")[2] if text.startswith(("/ask ", "/search ")) else text
+        question = arg.strip() if cmd in ("/ask", "/search") else text
         try:
-            matches = store.search(os.getenv("RAG_ORG", ""), "default", question, 4)
-            response_text = ("\n".join(m["source"] + ": " + m["text"][:180] for m in matches)
-                             if mode == "search" else await answer(question, matches, cfg))
+            if cmd == "/search":
+                results = search_knowledge(question, org, kb=kb, repository=store, settings=cfg)
+                reply = telegram_search(results)
+            else:
+                result = await ask_knowledge(question, org, kb=kb, repository=store, settings=cfg)
+                reply = telegram_answer(result)
         except Exception:
-            response_text = "The knowledge service is currently unavailable."
-    # Avoid HTTPX errors exposing a token-bearing URL; suppress chaining.
+            # Never send database URLs, credentials or exception messages to users.
+            reply = "Knowledge retrieval is currently unavailable. Check database and model configuration."
+
+    # No token-bearing URLs may be logged. Keep HTTPX/HTTPCore below DEBUG.
     try:
         async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
-            result = await client.post(
+            response = await client.post(
                 "https://api.telegram.org/bot" + token + "/sendMessage",
-                json={"chat_id": chat_id, "text": response_text[:3800]})
-            if result.status_code >= 400:
-                return {"accepted": False}
+                json={"chat_id": chat_id, "text": reply[:3800]},
+            )
+        return {"accepted": response.status_code == 200}
     except httpx.HTTPError:
         return {"accepted": False}
-    return {"accepted": True}
