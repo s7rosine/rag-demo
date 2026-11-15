@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-DEFAULT_WEBHOOK = "https://rag-demo-muku-solutions.vercel.app/telegram/webhook"
+DEFAULT_WEBHOOK = "https://rag-demo-gamma.vercel.app/telegram/webhook"
 CHECK_INTERVAL_SECONDS = 120
 _next_check = 0.0
 _current_status = "not_checked"

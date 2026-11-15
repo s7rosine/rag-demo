@@ -33,7 +33,7 @@ Telegram can retrieve indexed source excerpts with `/search` even if an LLM is n
 
 Telegram must know your public webhook URL, which is:
 
-`https://rag-demo-muku-solutions.vercel.app/telegram/webhook`
+`https://rag-demo-gamma.vercel.app/telegram/webhook`
 
 The FastAPI cloud application automatically checks Telegram's `getWebhookInfo` during application startup (and when `/health` is requested) and calls `setWebhook` only if the configured URL is missing or different. It sends the saved `TELEGRAM_WEBHOOK_SECRET` as the registration secret. No laptop commands are needed. After deployment, request `GET /health`; the `telegram_webhook` field will report `registered`, `not_configured`, `invalid_url`, or `registration_unavailable`. This status confirms the configured URL, not end-to-end message processing. Avoid sharing bot tokens or webhook secrets. If the secret has changed but the registered URL has not, Telegram cannot reveal the stored secret; rotate the URL or use an authorized re-registration workflow to ensure the new secret takes effect.
 
