@@ -97,3 +97,24 @@ refresh or open `/docs` in a fresh browser session after deployment.
 Expected outcomes: 401 = no valid bearer header, 403 = incorrect credential or
 page not authorized, 503 = Notion/database failure, 200 = successful import.
 The Notion account must separately authorize the allowlisted page.
+
+## Safe error classification (November 16, 2026)
+
+The import endpoint returns actionable, sanitized error messages rather than
+collapsing every provider/database problem into generic 503:
+- **424 Notion token rejected**: verify Vercel `NOTION_API_TOKEN` is a Notion
+  internal connection token, not `RAG_WRITE_TOKEN`.
+- **424 Page missing/not shared or access denied**: in Notion, add the *same*
+  internal connection to the approved page using its Connections menu. Page IDs
+  are identifiers, not grants of access.
+- **422 No readable text**: the page has no supported Notion text blocks.
+- **503 Neon indexing failed**: check DB schema and write privileges.
+- **503 Notion rate limited/network error**: resolve provider connectivity.
+- **200**: one allowlisted page has been indexed or confirmed unchanged.
+
+Swagger UI (`/docs`) is a developer-facing interface generated from FastAPI
+OpenAPI metadata. It allows the RAG admin to inspect routes, authenticate with
+a Bearer write token and invoke the protected single-page import. It is not
+the employee chatbot, Notion UI, or the knowledge database. It should be
+protected from unnecessary public exposure in production, even though actual
+import routes require a separate write token.

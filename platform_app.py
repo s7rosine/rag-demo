@@ -10,7 +10,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
 from platform_core import Repository, Settings
-from notion_sync import sync_notion_page
+from notion_sync import NotionImportError, sync_notion_page
 from rag import ask_knowledge, search_knowledge, telegram_answer, telegram_search
 from rag_diagnostics import rag_status
 from telegram_registration import ensure_webhook, webhook_status
@@ -154,9 +154,26 @@ def admin_sync_notion(payload: NotionSyncRequest, org: str = Depends(write_acces
         return sync_notion_page(store, org, token, allowed, payload.page_id)
     except PermissionError:
         raise HTTPException(403, "Notion page is not authorized for this knowledge base") from None
+    except NotionImportError as exc:
+        # Only use explicit safe labels, never response bodies, headers, raw
+        # exceptions or URLs that could contain private workspace data.
+        outcomes = {
+            ("notion", "token_rejected"): (424, "Notion API token rejected. Verify NOTION_API_TOKEN in Vercel."),
+            ("notion", "access_denied"): (424, "Notion integration lacks read access. Share this page with the integration."),
+            ("notion", "page_not_shared_or_missing"): (424, "Notion page missing or not shared with the integration."),
+            ("notion", "rate_limited"): (503, "Notion API rate limited the request. Retry later."),
+            ("notion", "upstream_error"): (502, "Notion API rejected the import request."),
+            ("notion", "network_error"): (503, "Notion API could not be reached."),
+            ("notion", "invalid_or_unreadable_content"): (422, "Notion page content is invalid or exceeds supported limits."),
+            ("notion", "no_readable_text"): (422, "Notion page has no readable text blocks to index."),
+            ("notion", "unexpected_error"): (503, "Notion document extraction failed."),
+            ("index", "unsupported_document"): (422, "Notion document could not be indexed."),
+            ("database", "index_write_failed"): (503, "Neon indexing failed. Verify schema permissions and database logs."),
+        }
+        code, message = outcomes.get((exc.stage, exc.kind), (503, "Notion import failed."))
+        raise HTTPException(code, message) from None
     except Exception:
-        # Do not reflect provider tokens, page contents, or upstream error URLs.
-        raise HTTPException(503, "Notion sync unavailable; check configuration and permissions") from None
+        raise HTTPException(503, "Unexpected Notion import failure; no data indexed.") from None
 
 
 @app.post("/telegram/webhook")

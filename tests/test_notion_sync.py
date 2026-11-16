@@ -79,3 +79,50 @@ def test_endpoint_denies_unknown_page(monkeypatch):
         json={"page_id": "notallowed-123"},
     )
     assert response.status_code == 403
+
+def test_notional_api_404_classified_without_credentials(monkeypatch):
+    import httpx
+    req = httpx.Request("GET", "https://api.notion.com/v1/blocks/approved-123/children")
+    response = httpx.Response(404, request=req)
+    exc = httpx.HTTPStatusError("hidden page response", request=req, response=response)
+    monkeypatch.setattr(notion_sync, "notion_documents", lambda *a, **k: (_ for _ in ()).throw(exc))
+    try:
+        notion_sync.sync_notion_page(object(), "org", "token-secret", ["approved-123"], "approved-123")
+        assert False
+    except notion_sync.NotionImportError as failure:
+        assert (failure.stage, failure.kind) == ("notion", "page_not_shared_or_missing")
+        assert "token-secret" not in str(failure)
+
+
+def test_database_stage_error_sanitized(monkeypatch):
+    monkeypatch.setattr(notion_sync, "notion_documents",
+                        lambda *a, **k: iter([SourceDocument("notion://approved-123",
+                                                           "approved-123.md", b"safe example")]))
+    class BadStore:
+        def has_document(self, *args):
+            raise RuntimeError("postgres://user:SECRET@private-host/database")
+    try:
+        notion_sync.sync_notion_page(BadStore(), "org", "token", ["approved-123"], "approved-123")
+        assert False
+    except notion_sync.NotionImportError as failure:
+        assert (failure.stage, failure.kind) == ("database", "index_write_failed")
+        assert "SECRET" not in str(failure)
+
+
+def test_notional_api_401_mapped_to_actionable_auth_error(monkeypatch):
+    import httpx
+    req = httpx.Request("GET", "https://api.notion.com/v1/blocks/page/children")
+    response = httpx.Response(401, request=req)
+    exc = httpx.HTTPStatusError("token is secret", request=req, response=response)
+    monkeypatch.setenv("RAG_WRITE_TOKEN", "example-write")
+    monkeypatch.setenv("RAG_ORG", "org")
+    monkeypatch.setenv("NOTION_API_TOKEN", "upstream-secret")
+    monkeypatch.setenv("NOTION_PAGE_IDS", "approved-123")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://db/test")
+    monkeypatch.setattr(notion_sync, "notion_documents", lambda *a, **k: (_ for _ in ()).throw(exc))
+    response = TestClient(platform_app.app).post(
+        "/admin/sync/notion", headers={"Authorization": "Bearer example-write"},
+        json={"page_id": "approved-123"})
+    assert response.status_code == 424
+    assert "token rejected" in response.json()["detail"]
+    assert "upstream-secret" not in response.text
