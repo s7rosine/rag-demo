@@ -99,6 +99,11 @@ class Repository:
         return conn, "?", "sqlite"
 
     def initialize(self):
+        # Production schema is managed by a deliberate migration, NOT per request.
+        # Normal retrieval and indexing must not require CREATE TABLE permissions.
+        if self.cfg.mode == "production":
+            self.cfg.ensure_writable()
+            return
         conn, _, dialect = self.connect()
         with conn:
             if dialect == "postgres":
@@ -131,7 +136,9 @@ class Repository:
                 conn.execute(f"DELETE FROM rag_chunks WHERE org={ph} AND kb={ph} AND source={ph}",
                              (org, kb, source))
                 for n, chunk in enumerate(chunks):
-                    chunk_id = hashlib.sha256(f"{doc_id}:{n}".encode()).hexdigest()
+                    # Include source in chunk key: identical bytes from different
+                    # approved knowledge sources must not collide in the primary key.
+                    chunk_id = hashlib.sha256(f"{source}:{doc_id}:{n}".encode()).hexdigest()
                     conn.execute(
                         f"INSERT INTO rag_chunks (org,kb,document_id,chunk_id,source,body) "
                         f"VALUES ({ph},{ph},{ph},{ph},{ph},{ph})",

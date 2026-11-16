@@ -79,6 +79,18 @@ def sync_notion_page(repo: Repository, org: str, notion_token: str,
                 result["chunks_indexed"] += indexed["chunks_indexed"]
         except ValueError:
             raise NotionImportError("index", "unsupported_document") from None
-        except Exception:
-            raise NotionImportError("database", "index_write_failed") from None
+        except Exception as exc:
+            # psycopg SQLSTATE is a standardized error code; the raw exception
+            # may include sensitive SQL/connection content and must not escape.
+            state = getattr(exc, "sqlstate", None)
+            safe = {
+                "42501": "permission_denied",
+                "42P01": "table_missing",
+                "42703": "schema_mismatch",
+                "23505": "duplicate_chunk_key",
+                "23502": "required_column_missing",
+                "3F000": "schema_missing",
+                "25006": "read_only_transaction",
+            }
+            raise NotionImportError("database", safe.get(state, "index_write_failed")) from None
     return result

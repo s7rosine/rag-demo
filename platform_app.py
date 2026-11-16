@@ -168,7 +168,14 @@ def admin_sync_notion(payload: NotionSyncRequest, org: str = Depends(write_acces
             ("notion", "no_readable_text"): (422, "Notion page has no readable text blocks to index."),
             ("notion", "unexpected_error"): (503, "Notion document extraction failed."),
             ("index", "unsupported_document"): (422, "Notion document could not be indexed."),
-            ("database", "index_write_failed"): (503, "Neon indexing failed. Verify schema permissions and database logs."),
+            ("database", "index_write_failed"): (503, "Neon indexing failed. Check DB role and schema readiness."),
+            ("database", "permission_denied"): (503, "Neon indexing permission denied. Check SELECT, INSERT and DELETE grants."),
+            ("database", "table_missing"): (503, "Neon rag_chunks or rag_audit table missing in connected database."),
+            ("database", "schema_missing"): (503, "Neon indexing schema is missing."),
+            ("database", "schema_mismatch"): (503, "Neon indexing schema mismatch. Verify table columns."),
+            ("database", "duplicate_chunk_key"): (503, "Neon rejected a duplicate indexed chunk key."),
+            ("database", "required_column_missing"): (503, "Neon indexing requires a non-null table column."),
+            ("database", "read_only_transaction"): (503, "Neon connection is read-only; use a writable database role."),
         }
         code, message = outcomes.get((exc.stage, exc.kind), (503, "Notion import failed."))
         raise HTTPException(code, message) from None

@@ -126,3 +126,23 @@ def test_notional_api_401_mapped_to_actionable_auth_error(monkeypatch):
     assert response.status_code == 424
     assert "token rejected" in response.json()["detail"]
     assert "upstream-secret" not in response.text
+
+
+def test_database_sqlstate_permission_denied(monkeypatch):
+    class PgPermissionError(Exception):
+        sqlstate = "42501"
+
+    class DeniedStore:
+        def has_document(self, *a):
+            raise PgPermissionError("private DB URL user/password")
+    monkeypatch.setattr(
+        notion_sync, "notion_documents",
+        lambda *a, **k: iter([SourceDocument("notion://approved-123",
+                                           "approved-123.md", b"safe sample")]),
+    )
+    try:
+        notion_sync.sync_notion_page(DeniedStore(), "org", "fake", ["approved-123"], "approved-123")
+        assert False
+    except notion_sync.NotionImportError as failure:
+        assert (failure.stage, failure.kind) == ("database", "permission_denied")
+        assert "password" not in str(failure)
