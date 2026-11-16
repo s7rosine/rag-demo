@@ -78,3 +78,22 @@ without exposing passwords, connection strings or provider errors.
 
 Do not copy credentials or complete Telegram messages containing confidential
 information into issue reports or chats.
+
+## Swagger Authorization fix (November 16, 2026)
+
+The API now publishes an HTTP Bearer security scheme. In
+`https://rag-demo-gamma.vercel.app/docs`, select **Authorize** (padlock
+button), paste only the `RAG_WRITE_TOKEN` secret in **Value**, then click
+**Authorize** and **Close**. Swagger adds the `Bearer ` prefix and the
+`Authorization` header automatically for protected routes.
+
+Do NOT type `Bearer ` into the Authorize dialog when it already displays
+HTTP Bearer authentication. Do not paste the token into `page_id`, a query
+string, or this documentation. The `curl` example shown by Swagger contains
+the credential; never publish or screenshot that section once authenticated.
+If the old free-text `authorization` header is still shown, perform a hard
+refresh or open `/docs` in a fresh browser session after deployment.
+
+Expected outcomes: 401 = no valid bearer header, 403 = incorrect credential or
+page not authorized, 503 = Notion/database failure, 200 = successful import.
+The Notion account must separately authorize the allowlisted page.

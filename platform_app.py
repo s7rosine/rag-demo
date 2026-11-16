@@ -5,7 +5,8 @@ import os
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, Security, UploadFile
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
 from platform_core import Repository, Settings
@@ -31,11 +32,17 @@ cfg = Settings()
 store = Repository(cfg)
 
 
-def authorize(authorization: str | None = Header(default=None), scope: str = "read"):
+# HTTPBearer publishes a real security scheme in OpenAPI. Swagger UI's
+# "Authorize" control then adds Authorization: Bearer <token> automatically.
+# Separate read/write secrets are still checked on their respective endpoints.
+rag_bearer = HTTPBearer(auto_error=False, scheme_name="RAGBearerAuth")
+
+
+def authorize(credentials: HTTPAuthorizationCredentials | None, scope: str = "read"):
     expected = os.getenv("RAG_READ_TOKEN" if scope == "read" else "RAG_WRITE_TOKEN", "")
-    if not expected or not authorization or not authorization.startswith("Bearer "):
+    if not expected or credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(401, "Unauthorized")
-    if not hmac.compare_digest(authorization[7:], expected):
+    if not hmac.compare_digest(credentials.credentials, expected):
         raise HTTPException(403, "Forbidden")
     org = os.getenv("RAG_ORG", "")
     if not org:
@@ -43,12 +50,12 @@ def authorize(authorization: str | None = Header(default=None), scope: str = "re
     return org
 
 
-def read_access(authorization: str | None = Header(default=None)):
-    return authorize(authorization, "read")
+def read_access(credentials: HTTPAuthorizationCredentials | None = Security(rag_bearer)):
+    return authorize(credentials, "read")
 
 
-def write_access(authorization: str | None = Header(default=None)):
-    return authorize(authorization, "write")
+def write_access(credentials: HTTPAuthorizationCredentials | None = Security(rag_bearer)):
+    return authorize(credentials, "write")
 
 
 class Query(BaseModel):
