@@ -48,8 +48,18 @@ def rag_status(repository: Repository, settings: Settings, org: str, kb: str) ->
             (org, kb),
         ).fetchone()[0]
         messages.append("Indexed chunks (" + kb + "): " + str(count))
-    except Exception:
-        messages.append("Index table: MISSING or INACCESSIBLE (rag_chunks)")
+    except Exception as exc:
+        # Only SQLSTATE is inspected: never include driver error text,
+        # connection details, SQL statements, or document content in replies.
+        sqlstate = getattr(exc, "sqlstate", None)
+        if sqlstate == "42P01":
+            messages.append("Index table: NOT CREATED (rag_chunks)")
+        elif sqlstate == "42501":
+            messages.append("Index table: PERMISSION DENIED (rag_chunks)")
+        elif sqlstate == "3F000":
+            messages.append("Index schema: NOT FOUND")
+        else:
+            messages.append("Index table: MISSING or INACCESSIBLE (rag_chunks)")
         count = None
     finally:
         if conn is not None:

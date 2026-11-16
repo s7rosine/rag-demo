@@ -68,3 +68,48 @@ def test_indexed_counts(monkeypatch):
     result = rag_diagnostics.rag_status(Store(), cfg, "org", "default")
     assert "Indexed chunks (default): 3" in result
     assert "Answer model: NOT CONFIGURED" in result
+
+def test_missing_table_sqlstate_is_safe():
+    class MissingTableError(Exception):
+        sqlstate = "42P01"
+
+    class Conn:
+        def execute(self, query, args=None):
+            if "rag_chunks" in query:
+                raise MissingTableError("postgresql://secret-password@internal")
+            return SimpleNamespace(fetchone=lambda: (1,))
+
+        def close(self):
+            pass
+
+    class Store:
+        def connect(self):
+            return Conn(), "%s", "postgres"
+
+    cfg = SimpleNamespace(mode="production", database_url="postgresql://private")
+    result = rag_diagnostics.rag_status(Store(), cfg, "org", "default")
+    assert "Index table: NOT CREATED" in result
+    assert "secret-password" not in result
+
+
+def test_permission_denied_sqlstate_is_safe():
+    class PermissionErrorFromDb(Exception):
+        sqlstate = "42501"
+
+    class Conn:
+        def execute(self, query, args=None):
+            if "rag_chunks" in query:
+                raise PermissionErrorFromDb("sensitive database detail")
+            return SimpleNamespace(fetchone=lambda: (1,))
+
+        def close(self):
+            pass
+
+    class Store:
+        def connect(self):
+            return Conn(), "%s", "postgres"
+
+    cfg = SimpleNamespace(mode="production", database_url="postgresql://private")
+    result = rag_diagnostics.rag_status(Store(), cfg, "org", "default")
+    assert "Index table: PERMISSION DENIED" in result
+    assert "sensitive database detail" not in result
