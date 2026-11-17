@@ -128,3 +128,38 @@ def test_status_command_is_restricted_to_authorized_chat(monkeypatch):
     )
     assert unauthorized.json() == {"accepted": False}
     assert len(sent) == 1
+
+
+def test_telegram_reports_safe_model_failure(monkeypatch):
+    from cloud_models import ModelProviderError
+
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-secret")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "22")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake-token")
+    monkeypatch.setenv("RAG_ORG", "org")
+    sent = []
+
+    async def failed_ask(*args, **kwargs):
+        raise ModelProviderError("quota_exhausted")
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            pass
+        async def post(self, url, json):
+            sent.append(json)
+            return type("Response", (), {"status_code": 200})()
+
+    monkeypatch.setattr(platform_app, "ask_knowledge", failed_ask)
+    monkeypatch.setattr(platform_app.httpx, "AsyncClient", Client)
+    response = TestClient(platform_app.app).post(
+        "/telegram/webhook",
+        headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+        json={"message": {"chat": {"id": 22}, "text": "/ask What is RAG?"}},
+    )
+    assert response.status_code == 200
+    assert "quota exhausted" in sent[0]["text"]
+    assert "fake-token" not in sent[0]["text"]

@@ -71,3 +71,7 @@ to the configured AI provider to answer a question. Use only approved,
 non-confidential documents until data-handling and access-control reviews
 are complete. The current demo does not implement complete enterprise ACL
 propagation, scheduled ingestion, vector search, or token-cost controls.
+
+## Diagnosing failed /ask
+
+A configured model in /status means that settings exist, NOT that a live model call succeeded. New sanitized errors distinguish OpenAI API 401/403/400/404, 429 quota/rate limits, service errors, and network errors. No raw provider response body or secret is returned to Telegram. /search checks Neon only; /ask additionally calls OpenAI and can incur billing. Confirm API billing, project model permissions and usage before retrying. No provider error classification is proof of a live successful answer until the authorized Telegram /ask test succeeds.

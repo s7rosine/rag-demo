@@ -217,3 +217,35 @@ def test_openai_compatible_chat_request_and_portability(monkeypatch):
     assert calls[0][1]["json"]["model"] == "gpt-4.1-mini"
     assert asyncio.run(run("https://other-provider.example/v1")) == "Grounded test answer"
     assert calls[1][0] == "https://other-provider.example/v1/chat/completions"
+
+
+def test_openai_quota_error_sanitized(monkeypatch):
+    import httpx
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def post(self, url, **kwargs):
+            req = httpx.Request("POST", url)
+            response = httpx.Response(429, json={
+                "error": {"code": "insufficient_quota", "message": "PRIVATE"}
+            }, request=req)
+            response.raise_for_status()
+
+    monkeypatch.setattr(cloud_models.httpx, "AsyncClient", Client)
+    with pytest.raises(cloud_models.ModelProviderError) as error:
+        asyncio.run(cloud_models.generate("system", "question",
+                                         provider="openai_compatible",
+                                         model="gpt-4.1-mini",
+                                         base_url="https://api.openai.com/v1",
+                                         api_key="test-secret"))
+    assert error.value.reason == "quota_exhausted"
+    assert "PRIVATE" not in str(error.value)
+    assert "test-secret" not in str(error.value)

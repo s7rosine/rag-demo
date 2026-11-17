@@ -10,6 +10,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
 from platform_core import Repository, Settings
+from cloud_models import ModelProviderError, model_error_message
 from notion_sync import NotionImportError, sync_notion_page
 from rag import ask_knowledge, search_knowledge, telegram_answer, telegram_search
 from rag_diagnostics import rag_status
@@ -108,6 +109,8 @@ async def ask(payload: Query, org: str = Depends(read_access)):
             repository=store, settings=cfg,
         )
         return result
+    except ModelProviderError as exc:
+        raise HTTPException(424, model_error_message(exc.reason)) from None
     except Exception:
         raise HTTPException(503, "Question answering unavailable") from None
 
@@ -234,9 +237,11 @@ async def telegram_webhook(
             else:
                 result = await ask_knowledge(question, org, kb=kb, repository=store, settings=cfg)
                 reply = telegram_answer(result)
+        except ModelProviderError as exc:
+            reply = "AI generation failed: " + model_error_message(exc.reason)
         except Exception:
-            # Never send database URLs, credentials or exception messages to users.
-            reply = "Knowledge retrieval failed. Send /status to identify the database or indexing issue."
+            # Never send raw database, model, or credential exception details.
+            reply = "Question answering failed. Use /search to test retrieval separately."
 
     # No token-bearing URLs may be logged. Keep HTTPX/HTTPCore below DEBUG.
     try:
