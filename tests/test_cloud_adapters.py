@@ -177,3 +177,43 @@ def test_embedding_provider_can_differ_from_llm(monkeypatch):
         ["first", "second"], model="embedding-model", base_url="https://example.org/v1",
     ))
     assert vectors == [[1.0, 2.0], [3.0, 4.0]]
+
+
+def test_openai_compatible_chat_request_and_portability(monkeypatch):
+    """Verify OpenAI endpoint, payload, bearer key and alternative base URL."""
+    calls = []
+
+    class Response:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": "Grounded test answer"}}]}
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def post(self, url, **kwargs):
+            calls.append((url, kwargs))
+            return Response()
+
+    monkeypatch.setattr(cloud_models.httpx, "AsyncClient", Client)
+    async def run(url):
+        return await cloud_models.generate(
+            "Use provided knowledge only", "What is RAG?",
+            provider="openai_compatible", model="gpt-4.1-mini",
+            base_url=url, api_key="fake-test-key",
+        )
+    assert asyncio.run(run("https://api.openai.com/v1")) == "Grounded test answer"
+    assert calls[0][0] == "https://api.openai.com/v1/chat/completions"
+    assert calls[0][1]["headers"] == {"Authorization": "Bearer fake-test-key"}
+    assert calls[0][1]["json"]["model"] == "gpt-4.1-mini"
+    assert asyncio.run(run("https://other-provider.example/v1")) == "Grounded test answer"
+    assert calls[1][0] == "https://other-provider.example/v1/chat/completions"

@@ -51,6 +51,17 @@ A `telegram_webhook` status of `registered` verifies webhook URL registration,
 Do not add sensitive/private documents until authorization and retention
 controls have been reviewed.
 
+## OpenAI answer generation (provider-switchable)
+
+The first OpenAI provider configuration uses
+`LLM_PROVIDER=openai_compatible`,
+`LLM_BASE_URL=https://api.openai.com/v1`, and
+`LLM_MODEL=gpt-4.1-mini`. Set the separate, private
+`LLM_API_KEY` directly in Vercel Production, then redeploy. No API
+credentials are committed. This choice does not replace the Anthropic or
+Gemini adapters, and does not enable vector embeddings. Full instructions:
+[OpenAI model setup](docs/OPENAI_LLM_SETUP.md).
+
 ## Approved multi-source RAG architecture
 
 The modular source adapters are in [cloud_sources.py](cloud_sources.py): scoped S3

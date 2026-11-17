@@ -71,10 +71,18 @@ def rag_status(repository: Repository, settings: Settings, org: str, kb: str) ->
     notion_ready = bool(os.getenv("NOTION_API_TOKEN")) and bool(os.getenv("NOTION_PAGE_IDS"))
     messages.append("Notion credentials/allowlist: " + ("CONFIGURED" if notion_ready else "INCOMPLETE"))
     provider = os.getenv("LLM_PROVIDER", "openai_compatible")
+    url = os.getenv("LLM_BASE_URL", "")
+    key = os.getenv("LLM_API_KEY", "")
     model_ready = bool(os.getenv("LLM_MODEL")) and (
-        provider in ("anthropic", "gemini") or bool(os.getenv("LLM_BASE_URL"))
+        provider in ("anthropic", "gemini") or bool(url)
     )
-    messages.append("Answer model: " + ("CONFIGURED (not tested)" if model_ready else "NOT CONFIGURED"))
+    if not model_ready:
+        messages.append("Answer model: NOT CONFIGURED")
+    elif not key and (provider in ("anthropic", "gemini") or
+                      url.rstrip("/") == "https://api.openai.com/v1"):
+        messages.append("Answer model: API KEY MISSING (LLM_API_KEY)")
+    else:
+        messages.append("Answer model: CONFIGURED (live call not tested)")
     if count == 0:
         messages.append("Next: Import an approved Notion page before /search.")
     elif count is None:

@@ -113,3 +113,26 @@ def test_permission_denied_sqlstate_is_safe():
     result = rag_diagnostics.rag_status(Store(), cfg, "org", "default")
     assert "Index table: PERMISSION DENIED" in result
     assert "sensitive database detail" not in result
+
+
+def test_openai_config_without_key_is_not_ready(monkeypatch):
+    class Conn:
+        def execute(self, query, args=None):
+            if "rag_chunks" in query:
+                return SimpleNamespace(fetchone=lambda: (17,))
+            return SimpleNamespace(fetchone=lambda: (1,))
+        def close(self):
+            pass
+
+    class Store:
+        def connect(self):
+            return Conn(), "%s", "postgres"
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai_compatible")
+    monkeypatch.setenv("LLM_MODEL", "gpt-4.1-mini")
+    monkeypatch.setenv("LLM_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    cfg = SimpleNamespace(mode="production", database_url="postgresql://example/rag")
+    status = rag_diagnostics.rag_status(Store(), cfg, "org", "default")
+    assert "Indexed chunks (default): 17" in status
+    assert "Answer model: API KEY MISSING" in status
